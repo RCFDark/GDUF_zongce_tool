@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF 首页 + 姓名页 左右拼接工具</title>
+<style>
+  :root{
+    --bg:#0e1116;
+    --bg2:#151922;
+    --panel:#181d27;
+    --panel2:#1f2531;
+    --line:#2a3140;
+    --text:#e8ecf3;
+    --muted:#95a1b3;
+    --accent:#4c8dff;
+    --accent2:#2f6fe0;
+    --ok:#31c48d;
+    --warn:#f0b429;
+    --danger:#f05252;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;background:var(--bg);color:var(--text);
+    font-family:"Microsoft YaHei","PingFang SC","Segoe UI",system-ui,-apple-system,sans-serif;
+    font-size:14px;line-height:1.55;display:flex;flex-direction:column;overflow:hidden;
+  }
+  button{
+    font-family:inherit;font-size:13px;cursor:pointer;border-radius:8px;
+    border:1px solid var(--line);background:var(--panel2);color:var(--text);
+    padding:7px 14px;transition:.15s;white-space:nowrap;
+  }
+  button:hover:not(:disabled){border-color:#3b4557;background:#242b39;}
+  button:disabled{opacity:.4;cursor:not-allowed;}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;}
+  button.primary:hover:not(:disabled){background:var(--accent2);border-color:var(--accent2);}
+  button.ghost{background:transparent;}
+  input,select{
+    font-family:inherit;font-size:13px;background:#0f131a;color:var(--text);
+    border:1px solid var(--line);border-radius:7px;padding:6px 10px;outline:none;
+  }
+  input:focus,select:focus{border-color:var(--accent);}
+  .muted{color:var(--muted);font-size:12.5px;}
+  .hidden{display:none !important;}
+
+  /* ---------- 顶栏 ---------- */
+  .topbar{
+    flex:0 0 auto;display:flex;align-items:center;gap:16px;
+    padding:12px 18px;background:var(--bg2);border-bottom:1px solid var(--line);
+  }
+  .brand{display:flex;align-items:center;gap:12px;min-width:0;}
+  .logo{
+    width:34px;height:34px;flex:0 0 auto;border-radius:9px;display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(140deg,var(--accent),#7b5cff);color:#fff;font-weight:700;font-size:16px;
+  }
+  .brand h1{margin:0;font-size:15px;font-weight:600;letter-spacing:.2px;}
+  .brand p{margin:0;font-size:12px;color:var(--muted);}
+  .topActions{margin-left:auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:flex-end;}
+  .switch{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);cursor:pointer;user-select:none;}
+  .switch input{accent-color:var(--accent);}
+
+  /* ---------- 主体 ---------- */
+  main{flex:1;display:flex;min-height:0;}
+  .sidebar{
+    flex:0 0 268px;background:var(--bg2);border-right:1px solid var(--line);
+    display:flex;flex-direction:column;min-height:0;
+  }
+  .aside-head{
+    display:flex;align-items:center;gap:8px;padding:11px 14px;
+    border-bottom:1px solid var(--line);font-weight:600;font-size:13px;
+  }
+  .badge{
+    margin-left:auto;background:var(--panel2);border:1px solid var(--line);
+    border-radius:20px;padding:1px 9px;font-size:11.5px;color:var(--muted);font-weight:500;
+  }
+  .file-list{flex:1;overflow-y:auto;padding:8px;}
+  .file-item{
+    display:flex;gap:9px;align-items:flex-start;padding:9px 10px;border-radius:8px;
+    cursor:pointer;border:1px solid transparent;margin-bottom:3px;
+  }
+  .file-item:hover{background:var(--panel);}
+  .file-item.active{background:#1d2738;border-color:var(--accent);}
+  .file-item .dot{
+    flex:0 0 auto;width:7px;height:7px;border-radius:50%;background:#4a5568;margin-top:6px;
+  }
+  .file-item.done .dot{background:var(--ok);}
+  .file-item.skipped .dot{background:#6b7280;}
+  .fi-body{min-width:0;flex:1;}
+  .fi-name{font-size:12.5px;word-break:break-all;line-height:1.4;}
+  .fi-meta{font-size:11px;color:var(--muted);margin-top:2px;display:flex;gap:8px;flex-wrap:wrap;}
+  .tag{background:#233043;color:#8fb6ff;border-radius:4px;padding:0 5px;font-size:10.5px;}
+  .tag.ok{background:#17352a;color:#5fd3a4;}
+  .tag.warn{background:#3a2f14;color:#e2bd63;}
+  .empty{padding:24px 14px;color:var(--muted);font-size:12.5px;text-align:center;line-height:1.7;}
+
+  .workspace{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;}
+  .start-hint{
+    margin:auto;max-width:520px;text-align:center;color:var(--muted);padding:40px 20px;line-height:1.9;
+  }
+  .start-hint h2{color:var(--text);font-size:17px;margin:0 0 12px;}
+  .start-hint ol{text-align:left;display:inline-block;margin:10px 0 0;padding-left:22px;}
+  .start-hint b{color:#a9c6ff;font-weight:600;}
+
+  /* ---------- 编辑区 ---------- */
+  .editor{flex:1;display:flex;flex-direction:column;min-height:0;}
+  .editor-head{
+    flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:10px 16px;
+    border-bottom:1px solid var(--line);background:var(--bg2);
+  }
+  .editor-title{min-width:0;}
+  .editor-title .n{font-weight:600;font-size:13.5px;word-break:break-all;}
+  .editor-actions{margin-left:auto;display:flex;gap:8px;}
+  .panes{flex:1;display:flex;gap:0;min-height:0;}
+  .pane{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;border-right:1px solid var(--line);}
+  .pane:last-child{border-right:none;}
+  .pane-head{
+    flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:9px 14px;
+    background:var(--panel);border-bottom:1px solid var(--line);font-size:12.5px;font-weight:600;
+  }
+  .pane-head .lbl{color:#a9c6ff;}
+  .pager{margin-left:auto;display:flex;align-items:center;gap:6px;}
+  .pager button{padding:3px 9px;font-size:12px;border-radius:6px;}
+  .pager input{width:56px;padding:3px 6px;text-align:center;font-size:12px;}
+  .canvasBox{flex:1;overflow:auto;padding:14px;background:#0b0e13;min-height:0;text-align:center;}
+  .canvasBox canvas{
+    display:block;max-width:100%;height:auto;background:#fff;border-radius:4px;
+    box-shadow:0 6px 22px rgba(0,0,0,.45);
+  }
+  .canvasWrap{position:relative;display:inline-block;max-width:100%;line-height:0;}
+  .overlay{position:absolute;inset:0;cursor:crosshair;touch-action:none;border-radius:4px;}
+  .selBox{
+    position:absolute;border:2px solid var(--danger);background:transparent;
+    border-radius:3px;pointer-events:none;display:none;
+    box-shadow:0 0 0 1.5px rgba(255,255,255,.75);
+  }
+  /* 综测类型选择 */
+  .type-grid{
+    display:grid;grid-template-columns:repeat(3,minmax(120px,1fr));gap:12px;padding:22px;background:var(--panel);
+  }
+  .type-btn{
+    display:flex;flex-direction:column;align-items:center;gap:6px;padding:18px 10px;
+    border-radius:12px;border:1px solid var(--line);background:#141922;color:var(--text);
+    font-size:14px;font-weight:600;transition:.15s;
+  }
+  .type-btn small{font-size:11px;color:var(--muted);font-weight:400;}
+  .type-btn:hover{border-color:var(--accent);background:#1a2130;transform:translateY(-1px);}
+  .type-btn .ico{font-size:20px;line-height:1;}
+  .type-btn.none{grid-column:1 / -1;flex-direction:row;justify-content:center;padding:12px;} 
+  .type-modal-head{padding:16px 20px 4px;background:var(--panel);}
+  .type-modal-head .t{font-size:15px;font-weight:600;}
+  .type-modal-head .s{font-size:12.5px;color:var(--muted);margin-top:4px;}
+  .type-modal-foot{
+    padding:12px 20px 16px;background:var(--panel);display:flex;gap:10px;align-items:center;
+    border-top:1px solid var(--line);font-size:12px;color:var(--muted);
+  }
+  .pane-foot{
+    flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:8px 14px;
+    background:var(--panel);border-top:1px solid var(--line);
+  }
+  .pane-foot button{padding:5px 11px;font-size:12.5px;}
+  .zoom-group{
+    display:flex;align-items:center;gap:2px;background:#0f131a;
+    border:1px solid var(--line);border-radius:8px;padding:2px;
+  }
+  .zoom-group button{border:none;background:transparent;padding:2px 8px;font-size:13px;border-radius:6px;}
+  .zoom-group button:hover:not(:disabled){background:#242b39;}
+  .zoom-label{
+    min-width:52px;text-align:center;font-size:12px;cursor:pointer;user-select:none;
+    font-variant-numeric:tabular-nums;
+  }
+  .zoom-label:hover{color:var(--accent);}
+  .zoom-group #btnZoomFit{font-size:12px;padding:2px 8px;}
+  .pane-foot .sel-hint{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+  /* ---------- 底部工具条 ---------- */
+  .toolbar{
+    flex:0 0 auto;display:flex;align-items:center;gap:14px;padding:11px 16px;
+    background:var(--bg2);border-top:1px solid var(--line);flex-wrap:wrap;
+  }
+  .toolbar label{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);}
+  .toolbar .grow{flex:1;}
+  .toolbar input[type=text]{width:150px;}
+
+  /* ---------- 弹窗 / 提示 ---------- */
+  .modal{
+    position:fixed;inset:0;background:rgba(5,7,11,.82);display:flex;align-items:center;justify-content:center;
+    z-index:50;padding:24px;
+  }
+  .modal-card{
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    max-width:min(1180px,94vw);max-height:92vh;display:flex;flex-direction:column;overflow:hidden;
+  }
+  .modal-head{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;}
+  .modal-head .t{font-weight:600;}
+  .modal-body{overflow:auto;padding:16px;background:#0b0e13;text-align:center;}
+  .modal-body img,.modal-body canvas{max-width:100%;border-radius:6px;background:#fff;}
+  .modal-foot{padding:13px 18px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end;align-items:center;}
+  .modal-foot .fname{margin-right:auto;font-size:12px;color:var(--muted);word-break:break-all;}
+
+  #toast{
+    position:fixed;left:50%;bottom:34px;transform:translateX(-50%) translateY(14px);
+    background:#202636;border:1px solid var(--line);border-left:3px solid var(--accent);
+    padding:11px 18px;border-radius:9px;font-size:13px;box-shadow:0 10px 30px rgba(0,0,0,.5);
+    opacity:0;pointer-events:none;transition:.22s;z-index:99;max-width:80vw;
+  }
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  #toast.ok{border-left-color:var(--ok);}
+  #toast.warn{border-left-color:var(--warn);}
+  #toast.err{border-left-color:var(--danger);}
+  .spin{
+    width:15px;height:15px;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;
+    border-radius:50%;display:inline-block;animation:sp .7s linear infinite;vertical-align:-2px;
+  }
+  @keyframes sp{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="logo">拼</div>
+    <div>
+      <h1>PDF 首页 + 姓名页 左右拼接工具</h1>
+      <p id="subTitle">选择 PDF 所在文件夹 → 翻到有自己姓名的那一页 → 框选姓名 → 保存并进入下一份</p>
+    </div>
+  </div>
+  <div class="topActions">
+    <label class="switch" title="勾选后会同时扫描子文件夹里的 PDF">
+      <input type="checkbox" id="includeSub"> 含子文件夹
+    </label>
+    <button id="btnPick" class="primary">选择文件夹</button>
+    <span id="dirInfo" class="muted"></span>
+  </div>
+</header>
+
+<main>
+  <aside class="sidebar">
+    <div class="aside-head">PDF 列表 <span class="badge" id="listCount">0 / 0</span></div>
+    <div class="file-list" id="fileList">
+      <div class="empty">尚未选择文件夹<br>点击右上角「选择文件夹」开始</div>
+    </div>
+  </aside>
+
+  <section class="workspace">
+    <div class="start-hint" id="startHint">
+      <h2>使用说明</h2>
+      <ol>
+        <li>点击右上角 <b>选择文件夹</b>，选中存放 PDF 的那个文件夹（会申请读写权限）。</li>
+        <li>左侧列出文件夹里的所有 PDF，<b>自动从第一份开始</b>。</li>
+        <li>右边翻页找到<b>自己姓名所在页</b>，在上面按住鼠标拖出一个框，套住姓名（只描红框，不加底色）。</li>
+        <li>点 <b>保存并进入下一份</b>，先在弹窗里选<b>综测类型</b>（德育/智育/体育/美育/劳育/未分类）：</li>
+      </ol>
+      <ul style="text-align:left;display:inline-block;margin:8px 0 0;padding-left:22px">
+        <li>选具体类型 → 存到 <b>合成结果 / 该类型</b>；选 <b>未分类</b> → 直接存到 <b>合成结果</b>。</li>
+        <li>姓名在<b>第 1 页</b>时，只输出这一页（不拼接）；在其它页时，<b>首页 + 姓名页左右拼接</b>成一张图。</li>
+        <li>输出文件名 = PDF 同名，如 <b>xxx.pdf → xxx.jpg</b>。</li>
+      </ul>
+      <p style="margin-top:18px">快捷键：<b>← →</b> 翻页 &nbsp;·&nbsp; <b>Enter</b> 保存并下一份 &nbsp;·&nbsp; 类型弹窗内 <b>1~6</b> 直接选 &nbsp;·&nbsp; <b>Esc</b> 关闭弹窗</p>
+      <p style="margin-top:6px">姓名页右下角可<b>缩放</b>（50% ~ 400%，或按 <b>Ctrl + 滚轮</b>）；放大后拖到面板边缘会自动滚动。</p>
+      <p style="margin-top:14px;font-size:12px">建议用 Chrome / Edge 打开本文件（需要「文件系统访问」权限），推荐直接把本 html 双击打开使用。</p>
+    </div>
+
+    <div class="editor hidden" id="editor">
+      <div class="editor-head">
+        <div class="editor-title">
+          <div class="n" id="curName">—</div>
+          <div class="muted" id="curMeta"></div>
+        </div>
+        <div class="editor-actions">
+          <button id="btnPrevFile" class="ghost">上一份</button>
+          <button id="btnSkip" class="ghost">跳过此份</button>
+        </div>
+      </div>
+
+      <div class="panes">
+        <div class="pane">
+          <div class="pane-head"><span class="lbl">① 首页（固定）</span><span class="muted" id="p1meta"></span></div>
+          <div class="canvasBox"><canvas id="cv1"></canvas></div>
+        </div>
+
+        <div class="pane">
+          <div class="pane-head">
+            <span class="lbl">② 姓名所在页</span>
+            <div class="pager">
+              <button id="btnPrevPage" title="上一页">‹</button>
+              <input type="number" id="pageInput" min="1" value="1">
+              <span class="muted" id="pageTotal">/ 1</span>
+              <button id="btnNextPage" title="下一页">›</button>
+            </div>
+          </div>
+          <div class="canvasBox" id="box2">
+            <div class="canvasWrap" id="wrap2">
+              <canvas id="cv2"></canvas>
+              <div class="overlay" id="overlay"><div class="selBox" id="selBox"></div></div>
+            </div>
+          </div>
+          <div class="pane-foot">
+            <span class="muted sel-hint" id="selHint">在页面上按住鼠标拖动，框出你的姓名</span>
+            <div class="zoom-group" title="Ctrl + 滚轮 也可以缩放">
+              <button id="btnZoomOut" title="缩小">−</button>
+              <span class="zoom-label" id="zoomLabel" title="点击回到 100%（宽度刚好铺满面板）">100%</span>
+              <button id="btnZoomIn" title="放大">＋</button>
+              <button id="btnZoomFit" class="ghost" title="适应宽度">适应</button>
+            </div>
+            <button id="btnClearSel" class="ghost">清除框选</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <span class="muted" id="namePreview">输出文件名：—</span>
+        <label>输出宽度
+          <select id="outWidth">
+            <option value="1200">1200（标准）</option>
+            <option value="1600" selected>1600（高清）</option>
+            <option value="2200">2200（超清，较慢）</option>
+          </select>
+        </label>
+        <div class="grow"></div>
+        <button id="btnPreview" class="ghost">预览效果图</button>
+        <button id="btnSaveNext" class="primary">保存并进入下一份 ⏎</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="modal hidden" id="modal">
+  <div class="modal-card">
+    <div class="modal-head"><span class="t">效果图预览</span><span class="muted" id="previewMeta"></span></div>
+    <div class="modal-body"><img id="previewImg" alt="合成图预览"></div>
+    <div class="modal-foot">
+      <span class="fname" id="previewName"></span>
+      <button id="btnModalCancel" class="ghost">返回修改</button>
+      <button id="btnModalSave" class="primary">确认保存并下一份</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal hidden" id="typeModal">
+  <div class="modal-card" style="max-width:620px">
+    <div class="type-modal-head">
+      <div class="t">这份材料属于哪一类综测？</div>
+      <div class="s">选择后图片会存到「合成结果 / 对应类型」文件夹；选「未分类」则直接存在「合成结果」下。</div>
+    </div>
+    <div class="type-grid" id="typeGrid"></div>
+    <div class="type-modal-foot">
+      <span>快捷键 1~6 直接选择 · Esc 取消</span>
+      <span class="grow" style="flex:1"></span>
+      <button id="btnTypeCancel" class="ghost">取消</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ========== 1. 动态加载 pdf.js（先找同目录本地文件，再走 CDN 兜底） ========== */
+window.__pdfjsReady = new Promise(function(resolve, reject){
+  var urls = [
+    'pdf.min.js',                                                     // 同目录本地文件（离线可用）
+    'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js',
+    'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
+  ];
+  var i = 0;
+  (function load(){
+    if (i >= urls.length) { reject(new Error('pdf.js 加载失败：请联网重试，或把 pdf.min.js / pdf.worker.min.js 放到本 html 同目录')); return; }
+    var s = document.createElement('script');
+    s.src = urls[i++];
+    s.onload = function(){
+      if (window.pdfjsLib) {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = s.src.replace('pdf.min.js', 'pdf.worker.min.js');
+        resolve();
+      } else { load(); }
+    };
+    s.onerror = load;
+    document.head.appendChild(s);
+  })();
+});
+</script>
+
+<script>
+/* ========== 2. 全局状态 ========== */
+var SUPPORTED = !!(window.showDirectoryPicker);
+var OUT_FOLDER = '合成结果';
+var TYPES = [
+  { key: '德育', icon: '🎓' },
+  { key: '智育', icon: '📘' },
+  { key: '体育', icon: '🏃' },
+  { key: '美育', icon: '🎨' },
+  { key: '劳育', icon: '🧹' }
+];
+var NO_TYPE = '未分类';
+
+var S = {
+  root: null,
+  pdfs: [],          // { name, path, fileHandle, dirHandle, status, savedType, sel:{}, page:1, total:0, existingIn:'' }
+  idx: -1,
+  doc: null,         // 当前 pdfjs document
+  docFor: null,      // 当前 doc 对应的 pdf 对象
+  page: 1,
+  busy: false,
+  lastType: null     // 上次选择的综测类型，方便连续处理
+};
+
+var $ = function(id){ return document.getElementById(id); };
+
+function toast(msg, type, ms){
+  var t = $('toast');
+  t.className = type || '';
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t.__timer);
+  t.__timer = setTimeout(function(){ t.classList.remove('show'); }, ms || 2600);
+}
+
+/* ========== 3. 选择文件夹 & 扫描 ========== */
+async function ensureRW(handle){
+  if (!handle.queryPermission) return true;
+  var opts = { mode: 'readwrite' };
+  if (await handle.queryPermission(opts) === 'granted') return true;
+  return (await handle.requestPermission(opts)) === 'granted';
+}
+
+$('btnPick').addEventListener('click', pickFolder);
+
+async function pickFolder(){
+  if (!SUPPORTED){
+    toast('当前浏览器不支持「文件夹读写」，请改用 Chrome / Edge 打开', 'err', 5200);
+    return;
+  }
+  try{
+    await window.__pdfjsReady;
+  }catch(e){
+    toast(e.message, 'err', 5000); return;
+  }
+  var dir;
+  try{
+    dir = await window.showDirectoryPicker({ mode: 'readwrite', id: 'pdf-compose', startIn: 'documents' });
+  }catch(e){ return; }   // 用户取消
+
+  if (!await ensureRW(dir)){ toast('未获得读写权限，无法保存结果', 'err'); return; }
+
+  S.root = dir;
+  $('dirInfo').textContent = '📁 ' + dir.name;
+  $('listCount').textContent = '扫描中…';
+  $('fileList').innerHTML = '<div class="empty">正在扫描 PDF…</div>';
+
+  var list = [];
+  try{
+    await scanDir(dir, dir.name, 0, $('includeSub').checked, list);
+  }catch(e){
+    toast('扫描失败：' + e.message, 'err'); return;
+  }
+
+  list.sort(function(a,b){ return a.name.localeCompare(b.name, 'zh-CN', { numeric: true }); });
+  S.pdfs = list;
+  S.idx = -1;
+
+  if (!S.pdfs.length){
+    $('fileList').innerHTML = '<div class="empty">这个文件夹里没有找到 PDF 文件</div>';
+    $('listCount').textContent = '0 / 0';
+    toast('没有找到 PDF 文件', 'warn');
+    return;
+  }
+
+  renderList();
+  toast('共找到 ' + S.pdfs.length + ' 份 PDF，逐个检查已有结果…');
+  checkAllExisting();     // 后台检查是否已生成过
+  openPdf(0);
+}
+
+async function scanDir(dirHandle, path, depth, recurse, out){
+  for await (var entry of dirHandle.values()){
+    if (entry.kind === 'file'){
+      if (/\.pdf$/i.test(entry.name)){
+        out.push({
+          name: entry.name,
+          path: path,
+          fileHandle: entry,
+          dirHandle: dirHandle,
+          status: 'pending', sel: {}, page: 1, total: 0, existingIn: ''
+        });
+      }
+    } else if (entry.kind === 'directory'){
+      if (entry.name === OUT_FOLDER) continue;
+      if (!recurse || depth >= 3) continue;
+      await scanDir(entry, path + '/' + entry.name, depth + 1, recurse, out);
+    }
+  }
+}
+
+/* 检查 PDF 同目录的「合成结果」及其各类型子文件夹里是否已有结果 */
+async function checkAllExisting(){
+  for (var i = 0; i < S.pdfs.length; i++){
+    var p = S.pdfs[i];
+    p.existingIn = '';
+    var outDir = null;
+    try{ outDir = await p.dirHandle.getDirectoryHandle(OUT_FOLDER); }catch(e){ outDir = null; }
+    if (outDir){
+      var names = [baseName(p.name) + '.jpg', baseName(p.name) + '.png',
+                   baseName(p.name) + '_合成.jpg', baseName(p.name) + '_合成.png'];
+      var dirs = [{ d: outDir, label: '' }];
+      for (var t = 0; t < TYPES.length; t++){
+        try{ dirs.push({ d: await outDir.getDirectoryHandle(TYPES[t].key), label: TYPES[t].key }); }catch(e){}
+      }
+      for (var k = 0; k < dirs.length && !p.existingIn; k++){
+        for (var n = 0; n < names.length && !p.existingIn; n++){
+          try{ await dirs[k].d.getFileHandle(names[n]); p.existingIn = dirs[k].label || NO_TYPE; }catch(e){}
+        }
+      }
+    }
+    if (i % 4 === 3){ renderList(); await sleep(0); }
+  }
+  renderList();
+}
+
+function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+function baseName(n){ return n.replace(/\.pdf$/i, ''); }
+
+/* ========== 4. 左侧列表 ========== */
+function renderList(){
+  var box = $('fileList');
+  box.innerHTML = '';
+  var done = 0;
+  S.pdfs.forEach(function(p, i){
+    if (p.status === 'done' || p.existingIn) done++;
+    var el = document.createElement('div');
+    el.className = 'file-item' + (i === S.idx ? ' active' : '') + (p.status === 'done' ? ' done' : p.status === 'skipped' ? ' skipped' : '');
+    var tags = '';
+    if (p.status === 'done')  tags += '<span class="tag ok">已保存 · ' + (p.savedType || NO_TYPE) + '</span>';
+    if (p.status === 'skipped') tags += '<span class="tag warn">已跳过</span>';
+    if (p.existingIn && p.status !== 'done') tags += '<span class="tag warn">已有：' + p.existingIn + '</span>';
+    if (p.total) tags += '<span class="tag">' + p.total + ' 页</span>';
+    el.innerHTML = '<span class="dot"></span>' +
+      '<div class="fi-body"><div class="fi-name"></div><div class="fi-meta">' + tags + '</div></div>';
+    el.querySelector('.fi-name').textContent = (p.path && p.path !== S.root.name ? p.path.replace(S.root.name + '/', '') + ' / ' : '') + p.name;
+    el.addEventListener('click', function(){ openPdf(i); });
+    box.appendChild(el);
+  });
+  $('listCount').textContent = done + ' / ' + S.pdfs.length;
+  var active = box.querySelector('.file-item.active');
+  if (active) active.scrollIntoView({ block: 'nearest' });
+}
+
+/* ========== 5. 打开某一份 PDF ========== */
+async function openPdf(i){
+  if (i < 0 || i >= S.pdfs.length) return;
+  if (S.busy) { toast('正在处理，请稍等…', 'warn'); return; }
+  S.busy = true;
+  try{
+    S.idx = i;
+    var p = S.pdfs[i];
+    $('startHint').classList.add('hidden');
+    $('editor').classList.remove('hidden');
+    $('curName').textContent = p.name;
+    $('namePreview').textContent = '输出文件名：' + outFileName(p, '.jpg');
+    $('curMeta').textContent = '第 ' + (i + 1) + ' / ' + S.pdfs.length + ' 份' + (p.path && p.path !== S.root.name ? ' · ' + p.path.replace(S.root.name + '/', '') : '') + ' · 正在打开…';
+
+    await loadDoc(p);
+
+    p.total = S.doc.numPages;
+    $('pageTotal').textContent = '/ ' + p.total;
+    $('p1meta').textContent = '共 ' + p.total + ' 页';
+    $('curMeta').textContent = '第 ' + (i + 1) + ' / ' + S.pdfs.length + ' 份 · 共 ' + p.total + ' 页';
+
+    // 首页（固定）
+    await renderPage(1, $('cv1'), 900);
+
+    setPage(p.page || 1, true);
+    renderList();
+  }catch(e){
+    console.error(e);
+    toast('打开失败：' + e.message, 'err', 4200);
+  }finally{
+    S.busy = false;
+  }
+}
+
+async function loadDoc(p){
+  await window.__pdfjsReady;
+  if (S.docFor === p && S.doc) return S.doc;
+  if (S.doc){
+    try{ await S.doc.destroy(); }catch(e){}
+    S.doc = null; S.docFor = null;
+  }
+  var file = await p.fileHandle.getFile();
+  var buf = await file.arrayBuffer();
+  S.doc = await window.pdfjsLib.getDocument({ data: buf, isEvalSupported: false }).promise;
+  S.docFor = p;
+  return S.doc;
+}
+
+async function renderPage(num, canvas, targetW){
+  var pg = await S.doc.getPage(num);
+  var base = pg.getViewport({ scale: 1 });
+  var scale = targetW / base.width;
+  var vp = pg.getViewport({ scale: scale });
+  canvas.width  = Math.floor(vp.width);
+  canvas.height = Math.floor(vp.height);
+  var ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  await pg.render({ canvasContext: ctx, viewport: vp }).promise;
+}
+
+/* ========== 6. 翻页 & 框选 ========== */
+function setPage(n, force){
+  var p = S.pdfs[S.idx];
+  if (!p || !S.doc) return;
+  n = Math.max(1, Math.min(p.total, n | 0));
+  if (!force && n === S.page && S.docFor === p) { updateSelBox(); return; }
+  S.page = n;
+  p.page = n;
+  lastOutput = null;          // 换页后旧的效果图作废
+  $('pageInput').value = n;
+  $('btnPrevPage').disabled = n <= 1;
+  $('btnNextPage').disabled = n >= p.total;
+  $('box2').scrollTop = 0;      // 换页后回到顶部；左右位置保留（综测名单多为居中，来回翻页不用反复拖横向滚动条）
+
+  clearTimeout(rerenderTimer);
+  renderBacking = targetBackingWidth();
+  renderPage(n, $('cv2'), renderBacking).then(function(){
+    applyZoom();
+    updateSelBox();
+    updateSelHint();
+  }).catch(function(e){ toast('渲染失败：' + e.message, 'err'); });
+}
+
+/* ---------- 姓名页缩放：1 = 铺满面板（100%） ---------- */
+var ZOOM_PRESETS = [0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4];
+var zoom = 1;
+var renderBacking = 0;      // cv2 当前渲染宽度，用于判断放大后要不要提高清晰度
+var rerenderTimer = null;
+
+/* 按当前缩放算出需要的渲染宽度：放大时同步提高分辨率，避免发虚 */
+function targetBackingWidth(){
+  var box = $('box2');
+  var avail = Math.max(300, box.clientWidth - 28);
+  return Math.min(2600, Math.max(1100, Math.round(avail * zoom)));
+}
+
+function applyZoom(){
+  var box = $('box2'), wrap = $('wrap2'), cv = $('cv2');
+  var avail = box.clientWidth - 28;                 // 减去 canvasBox 左右 padding
+  if (avail < 60) return;                           // 面板还没显示，等显示后再算
+  var w = Math.round(avail * zoom);
+  wrap.style.maxWidth = 'none';
+  wrap.style.width = w + 'px';
+  cv.style.maxWidth = 'none';
+  cv.style.width = w + 'px';
+  // 放大时靠左对齐，否则居中溢出会导致左侧内容滚不到
+  box.style.textAlign = (w > avail + 1) ? 'left' : 'center';
+  $('zoomLabel').textContent = Math.round(zoom * 100) + '%';
+  $('btnZoomOut').disabled = zoom <= ZOOM_PRESETS[0];
+  $('btnZoomIn').disabled  = zoom >= ZOOM_PRESETS[ZOOM_PRESETS.length - 1];
+  rerenderForZoom();
+}
+
+/* 放大到一定程度后，用更高分辨率重新渲染这一页（防抖 260ms） */
+function rerenderForZoom(){
+  var p = S.pdfs[S.idx];
+  if (!p || !S.doc) return;
+  var need = targetBackingWidth();
+  if (renderBacking && Math.abs(need - renderBacking) / need < 0.12) return;
+  clearTimeout(rerenderTimer);
+  rerenderTimer = setTimeout(function(){
+    renderPage(S.page, $('cv2'), need).then(function(){
+      renderBacking = need;
+    }).catch(function(){});
+  }, 260);
+}
+
+/* 以「当前视野中心」为锚点缩放：名单多为居中排版，放大后直接落在中间 */
+function applyZoomLevel(newZoom){
+  var box = $('box2');
+  var oldW = box.scrollWidth, view = box.clientWidth;
+  var ratio = (oldW > view + 1) ? (box.scrollLeft + view / 2) / oldW : 0.5;
+  zoom = newZoom;
+  applyZoom();
+  var newW = box.scrollWidth;
+  if (newW > box.clientWidth + 1){
+    box.scrollLeft = Math.round(Math.max(0, ratio * newW - box.clientWidth / 2));
+  }
+}
+
+function stepZoom(dir){
+  var best = 0, bestD = Infinity;
+  for (var k = 0; k < ZOOM_PRESETS.length; k++){
+    var d = Math.abs(ZOOM_PRESETS[k] - zoom);
+    if (d < bestD){ bestD = d; best = k; }
+  }
+  applyZoomLevel(ZOOM_PRESETS[Math.max(0, Math.min(ZOOM_PRESETS.length - 1, best + dir))]);
+}
+
+function resetZoom(){ applyZoomLevel(1); }
+
+$('btnZoomIn').addEventListener('click', function(){ stepZoom(1); });
+$('btnZoomOut').addEventListener('click', function(){ stepZoom(-1); });
+$('btnZoomFit').addEventListener('click', resetZoom);
+$('zoomLabel').addEventListener('click', resetZoom);
+
+/* Ctrl + 滚轮 缩放姓名页 */
+$('box2').addEventListener('wheel', function(e){
+  if (!e.ctrlKey) return;
+  e.preventDefault();
+  stepZoom(e.deltaY < 0 ? 1 : -1);
+}, { passive: false });
+
+window.addEventListener('resize', function(){ applyZoom(); });
+
+function setSelHintText(t, type){
+  var el = $('selHint');
+  el.textContent = t;
+  el.style.color = type === 'ok' ? 'var(--ok)' : type === 'warn' ? 'var(--warn)' : '';
+}
+
+function updateSelHint(){
+  var p = S.pdfs[S.idx];
+  var sel = p.sel[S.page];
+  var tail = (S.page === 1) ? '（姓名在第 1 页，将直接保存这一页）' : '（将与本页左侧的首页左右拼接）';
+  if (sel) setSelHintText('已框选姓名，保存后' + tail + '，本页可再次拖动重新框选', 'ok');
+  else setSelHintText('在页面上按住鼠标拖动，框出你的姓名' + tail, '');
+}
+
+function updateSelBox(){
+  var p = S.pdfs[S.idx];
+  var box = $('selBox');
+  if (!p){ box.style.display = 'none'; return; }
+  var sel = p.sel[S.page];
+  if (!sel){ box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  box.style.left   = (sel.x * 100) + '%';
+  box.style.top    = (sel.y * 100) + '%';
+  box.style.width  = (sel.w * 100) + '%';
+  box.style.height = (sel.h * 100) + '%';
+}
+
+$('btnPrevPage').addEventListener('click', function(){ setPage(S.page - 1); });
+$('btnNextPage').addEventListener('click', function(){ setPage(S.page + 1); });
+$('pageInput').addEventListener('change', function(){ setPage(parseInt(this.value, 10) || 1); });
+$('btnClearSel').addEventListener('click', function(){
+  var p = S.pdfs[S.idx];
+  if (!p) return;
+  delete p.sel[S.page];
+  lastOutput = null;
+  updateSelBox(); updateSelHint();
+  toast('已清除本页框选', 'ok', 1600);
+});
+
+(function bindOverlay(){
+  var ov = $('overlay'), start = null, dragging = false;
+  var lastClient = null, raf = null;
+  var scr = { dx: 0, dy: 0, step: 18, margin: 46 };   // 拖到边缘时的自动滚动
+
+  function clamp01(v){ return Math.min(1, Math.max(0, v)); }
+  function normXY(cx, cy){
+    var r = ov.getBoundingClientRect();
+    return { x: clamp01((cx - r.left) / r.width), y: clamp01((cy - r.top) / r.height) };
+  }
+  function paint(a, b){
+    var p = S.pdfs[S.idx];
+    if (!p) return;
+    var x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
+    var w = Math.abs(a.x - b.x), h = Math.abs(a.y - b.y);
+    p.sel[S.page] = { x: x, y: y, w: w, h: h };
+    lastOutput = null;         // 框选一变动，旧的效果图就作废
+    updateSelBox();
+  }
+
+  /* 放大后一屏放不下：拖到边缘自动滚动，同时持续刷新选框 */
+  function autoStep(){
+    if (!dragging || (!scr.dx && !scr.dy)){ raf = null; return; }
+    var box = $('box2');
+    var l = box.scrollLeft, t = box.scrollTop;
+    box.scrollLeft += scr.dx;
+    box.scrollTop  += scr.dy;
+    if ((box.scrollLeft !== l || box.scrollTop !== t) && lastClient){
+      paint(start, normXY(lastClient.x, lastClient.y));
+    }
+    raf = requestAnimationFrame(autoStep);
+  }
+  function ensureAuto(){ if (!raf) raf = requestAnimationFrame(autoStep); }
+  function updateScr(cx, cy){
+    var r = $('box2').getBoundingClientRect();
+    scr.dx = (cx - r.left < scr.margin) ? -scr.step : ((r.right - cx < scr.margin) ? scr.step : 0);
+    scr.dy = (cy - r.top  < scr.margin) ? -scr.step : ((r.bottom - cy < scr.margin) ? scr.step : 0);
+    ensureAuto();
+  }
+  function stopScr(){ scr.dx = scr.dy = 0; }
+
+  ov.addEventListener('pointerdown', function(ev){
+    if (!S.pdfs[S.idx]) return;
+    ov.setPointerCapture(ev.pointerId);
+    start = normXY(ev.clientX, ev.clientY);
+    lastClient = { x: ev.clientX, y: ev.clientY };
+    dragging = true;
+    paint(start, start);
+    setSelHintText('按住拖出方框，靠近面板边缘会自动滚动…', 'warn');
+  });
+  ov.addEventListener('pointermove', function(ev){
+    if (!dragging) return;
+    lastClient = { x: ev.clientX, y: ev.clientY };
+    paint(start, normXY(ev.clientX, ev.clientY));
+    updateScr(ev.clientX, ev.clientY);
+  });
+  ov.addEventListener('pointerup', function(ev){
+    if (!dragging) return;
+    dragging = false;
+    stopScr();
+    var p = S.pdfs[S.idx];
+    var sel = p.sel[S.page];
+    var r = ov.getBoundingClientRect();
+    if (!sel || sel.w * r.width < 8 || sel.h * r.height < 8){
+      delete p.sel[S.page];
+      updateSelBox(); updateSelHint();
+      toast('框太小了，请重新框选', 'warn', 1800);
+      return;
+    }
+    lastOutput = null;         // 重新框选后旧的效果图作废
+    updateSelHint();
+    toast('已框选姓名', 'ok', 1400);
+  });
+  ov.addEventListener('pointercancel', function(){ dragging = false; stopScr(); });
+})();
+
+/* ========== 7. 合成图片 ========== */
+function roundRect(ctx, x, y, w, h, r){
+  r = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/* 渲染某页，并把框选区域用红框描出来（不带填充），返回 canvas */
+async function renderPageWithBox(pageNum, outW, sel){
+  var cv = document.createElement('canvas');
+  await renderPage(pageNum, cv, outW);
+  if (!sel) return cv;
+  var ctx = cv.getContext('2d');
+  var rx = sel.x * cv.width,  ry = sel.y * cv.height;
+  var rw = sel.w * cv.width,  rh = sel.h * cv.height;
+  ctx.lineWidth   = Math.max(4, Math.round(cv.width / 260));
+  ctx.strokeStyle = '#e02424';
+  roundRect(ctx, rx, ry, rw, rh, Math.max(4, Math.round(cv.width / 200)));
+  ctx.stroke();
+  return cv;
+}
+
+/* 输出文件名 = PDF 文件名（xxx.pdf → xxx.jpg） */
+function outFileName(p, ext){
+  return baseName(p.name) + ext;
+}
+
+async function buildOutput(p, outW){
+  await loadDoc(p);
+  var sel = p.sel[p.page] || null;
+  var cvB = await renderPageWithBox(p.page, outW, sel);   // 姓名页（带红框）
+  var pad = Math.round(outW * 0.018);
+  var gap = Math.round(outW * 0.016);
+  var border = 1;
+
+  var out = document.createElement('canvas');
+  var oc;
+
+  /* —— 情况一：姓名就在第 1 页 → 只输出这一页，不做左右拼接 —— */
+  if (p.page === 1){
+    out.width  = pad * 2 + cvB.width;
+    out.height = pad * 2 + cvB.height;
+    oc = out.getContext('2d');
+    oc.fillStyle = '#ffffff';
+    oc.fillRect(0, 0, out.width, out.height);
+    oc.drawImage(cvB, pad, pad);
+    oc.strokeStyle = '#d5d9e0';
+    oc.lineWidth = border;
+    oc.strokeRect(pad + .5, pad + .5, cvB.width - 1, cvB.height - 1);
+    out.__single = true;
+    return out;
+  }
+
+  /* —— 情况二：姓名在其它页 → 首页（不带框） + 姓名页（带框）左右拼接 —— */
+  var cvA = await renderPageWithBox(1, outW, null);
+  out.width  = pad * 2 + cvA.width + gap + cvB.width;
+  out.height = pad * 2 + Math.max(cvA.height, cvB.height);
+  oc = out.getContext('2d');
+  oc.fillStyle = '#ffffff';
+  oc.fillRect(0, 0, out.width, out.height);
+  oc.drawImage(cvA, pad, pad);
+  oc.drawImage(cvB, pad + cvA.width + gap, pad);
+
+  oc.strokeStyle = '#d5d9e0';
+  oc.lineWidth = border;
+  oc.strokeRect(pad + .5, pad + .5, cvA.width - 1, cvA.height - 1);
+  oc.strokeRect(pad + cvA.width + gap + .5, pad + .5, cvB.width - 1, cvB.height - 1);
+  return out;
+}
+
+function canvasToBlob(canvas, type, quality){
+  return new Promise(function(res, rej){
+    canvas.toBlob(function(b){ b ? res(b) : rej(new Error('图片生成失败')); }, type, quality);
+  });
+}
+
+/* ========== 8. 预览 ========== */
+var lastOutput = null;
+
+$('btnPreview').addEventListener('click', doPreview);
+async function doPreview(){
+  var p = S.pdfs[S.idx];
+  if (!p) return;
+  if (!p.sel[p.page] && !confirm('当前页还没有框选姓名，是否仍然生成图片？')) return;
+  S.busy = true;
+  $('btnPreview').innerHTML = '<span class="spin"></span> 生成中';
+  $('btnPreview').disabled = true;
+  try{
+    var cv = await buildOutput(p, parseInt($('outWidth').value, 10));
+    lastOutput = cv;
+    $('previewImg').src = cv.toDataURL('image/jpeg', 0.92);
+    $('previewMeta').textContent = '（' + cv.width + ' × ' + cv.height + ' px' +
+      (cv.__single ? ' · 姓名在第 1 页，单页输出' : ' · 首页 + 姓名页左右拼接') + '）';
+    $('previewName').textContent = '文件名：' + outFileName(p, '.jpg');
+    $('modal').classList.remove('hidden');
+  }catch(e){
+    console.error(e);
+    toast('生成失败：' + e.message, 'err', 4200);
+  }finally{
+    S.busy = false;
+    $('btnPreview').textContent = '预览效果图';
+    $('btnPreview').disabled = false;
+  }
+}
+
+$('btnModalCancel').addEventListener('click', function(){ $('modal').classList.add('hidden'); });
+$('btnModalSave').addEventListener('click', function(){ $('modal').classList.add('hidden'); saveAndNext(); });
+$('modal').addEventListener('click', function(e){ if (e.target === this) this.classList.add('hidden'); });
+
+/* ========== 9. 综测类型选择 ========== */
+function buildTypeGrid(){
+  var g = $('typeGrid');
+  g.innerHTML = '';
+  var all = TYPES.concat([{ key: NO_TYPE, icon: '📁' }]);
+  all.forEach(function(t, i){
+    var b = document.createElement('button');
+    b.className = 'type-btn' + (t.key === NO_TYPE ? ' none' : '');
+    b.innerHTML = '<span class="ico">' + t.icon + '</span><span>' + t.key + '</span>' +
+      '<small>' + (t.key === NO_TYPE ? '直接存入「' + OUT_FOLDER + '」' : OUT_FOLDER + ' / ' + t.key) + '</small>';
+    b.addEventListener('click', function(){ chooseType(t.key); });
+    g.appendChild(b);
+  });
+}
+
+function openTypeModal(){
+  buildTypeGrid();
+  $('typeModal').classList.remove('hidden');
+}
+
+function closeTypeModal(){ $('typeModal').classList.add('hidden'); }
+
+$('btnTypeCancel').addEventListener('click', closeTypeModal);
+$('typeModal').addEventListener('click', function(e){ if (e.target === this) closeTypeModal(); });
+
+function chooseType(key){
+  closeTypeModal();
+  S.lastType = key;
+  doSave(key);
+}
+
+/* ========== 10. 保存 ========== */
+$('btnSaveNext').addEventListener('click', saveAndNext);
+
+/* 只做校验，然后弹出「综测类型」选择框 */
+function saveAndNext(){
+  var p = S.pdfs[S.idx];
+  if (!p || S.busy) return;
+  if (!p.sel[p.page]){
+    if (!confirm('这一份还没有框选姓名位置。\n\n确定要直接保存（不带红框）吗？')) return;
+  }
+  openTypeModal();
+}
+
+async function doSave(type){
+  var p = S.pdfs[S.idx];
+  if (!p) return;
+  if (!await ensureRW(p.dirHandle)){ toast('没有写入权限，无法保存', 'err'); return; }
+
+  S.busy = true;
+  var btn = $('btnSaveNext');
+  var old = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> 保存中…';
+
+  try{
+    var cv = (lastOutput && lastOutput.__for === p) ? lastOutput
+             : await buildOutput(p, parseInt($('outWidth').value, 10));
+    var blob = await canvasToBlob(cv, 'image/jpeg', 0.94);
+
+    var outDir = await p.dirHandle.getDirectoryHandle(OUT_FOLDER, { create: true });
+    if (type !== NO_TYPE){                       // 未分类 → 直接放「合成结果」
+      outDir = await outDir.getDirectoryHandle(type, { create: true });
+    }
+    var fname = outFileName(p, '.jpg');
+    var fh = await outDir.getFileHandle(fname, { create: true });
+    var w = await fh.createWritable();
+    await w.write(blob);
+    await w.close();
+
+    p.status = 'done';
+    p.savedType = type;
+    lastOutput = null;
+    renderList();
+    toast('✅ 已保存：' + OUT_FOLDER + (type === NO_TYPE ? '' : '/' + type) + '/' + fname, 'ok', 3200);
+
+    // 进入下一份
+    if (S.idx + 1 < S.pdfs.length){
+      var next = S.idx + 1;
+      await sleep(120);
+      S.busy = false;
+      btn.disabled = false; btn.textContent = old;
+      openPdf(next);
+      return;
+    } else {
+      toast('🎉 全部 PDF 处理完毕！', 'ok', 4200);
+    }
+  }catch(e){
+    console.error(e);
+    toast('保存失败：' + e.message, 'err', 5000);
+  }finally{
+    S.busy = false;
+    btn.disabled = false;
+    btn.textContent = old;
+  }
+}
+
+/* ========== 11. 其它按钮 & 快捷键 ========== */
+$('btnPrevFile').addEventListener('click', function(){ if (S.idx > 0) openPdf(S.idx - 1); });
+$('btnSkip').addEventListener('click', async function(){
+  var p = S.pdfs[S.idx];
+  if (!p) return;
+  p.status = 'skipped';
+  renderList();
+  if (S.idx + 1 < S.pdfs.length) openPdf(S.idx + 1);
+});
+
+$('outWidth').addEventListener('change', function(){ lastOutput = null; });
+
+document.addEventListener('keydown', function(e){
+  var typing = (e.target.tagName === 'INPUT');
+
+  // 综测类型弹窗
+  if (!$('typeModal').classList.contains('hidden')){
+    if (e.key === 'Escape'){ closeTypeModal(); e.preventDefault(); return; }
+    var n = parseInt(e.key, 10);
+    if (n >= 1 && n <= 6){
+      var key = (n <= 5) ? TYPES[n - 1].key : NO_TYPE;
+      chooseType(key);
+      e.preventDefault();
+      return;
+    }
+    return;
+  }
+  // 预览弹窗
+  if (!$('modal').classList.contains('hidden')){
+    if (e.key === 'Escape') $('modal').classList.add('hidden');
+    if (e.key === 'Enter')  { $('modal').classList.add('hidden'); saveAndNext(); }
+    return;
+  }
+  if (typing && e.key !== 'Enter') return;
+  if (!S.pdfs.length || $('editor').classList.contains('hidden')) return;
+  if (e.key === 'ArrowLeft')  { setPage(S.page - 1); e.preventDefault(); }
+  if (e.key === 'ArrowRight') { setPage(S.page + 1); e.preventDefault(); }
+  if (e.key === 'Enter' && !typing) { saveAndNext(); }
+});
+
+/* 记录图片属于哪一份，避免误用 */
+var _bo = buildOutput;
+buildOutput = async function(p, w){ var cv = await _bo(p, w); cv.__for = p; return cv; };
+
+/* ========== 12. 启动检查 ========== */
+if (!SUPPORTED){
+  $('subTitle').innerHTML = '<span style="color:#f05252">当前浏览器不支持文件夹读写，请用 Chrome 或 Edge 打开本文件</span>';
+}
+</script>
+</body>
+</html>
