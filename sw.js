@@ -21,17 +21,26 @@ self.addEventListener('message', function (ev) {
 self.addEventListener('fetch', function (event) {
   var r = event.request;
 
-  // 缓存探测类请求不要拦截（会抛错）
-  if (r.cache === 'only-if-cached' && r.mode !== 'same-origin') return;
-
-  var request = (COEP_CREDENTIALLESS && r.mode === 'no-cors')
-    ? new Request(r, { credentials: 'omit' })
-    : r;
+  /* 关键：只处理「导航请求」（即 HTML 文档本身）。
+   *
+   * 跨源隔离只要求**文档响应**带 COOP/COEP；子资源（脚本、wasm、模型、图片）由浏览器
+   * 按文档上的 COEP 原生校验，无需 SW 插手。若 SW 拦截所有请求并重建 Response，会踩到
+   * 一个致命坑：SW 里 fetch() 拿到的 response.body 已是**解压后的明文**，但复制过来的
+   * 响应头仍带 Content-Encoding: gzip/br —— 浏览器再解一次 → 内容损坏 →
+   * 脚本报 "Uncaught SyntaxError: Unexpected end of input"，
+   * pdf.js 的 Worker 因此起不来，退化成 fake worker 并抛
+   * "Cannot read properties of undefined (reading 'WorkerMessageHandler')"。
+   *
+   * 因此这里对非导航请求直接放行（不调用 respondWith），让浏览器走原生流程。 */
+  if (r.mode !== 'navigate') return;
 
   event.respondWith(
-    fetch(request).then(function (response) {
+    fetch(r).then(function (response) {
       if (response.status === 0) return response;          // opaque，原样返回
       var h = new Headers(response.headers);
+      // 防御：重建 Response 时 body 已被 SW 解压，必须去掉编码相关头，避免二次解码
+      h.delete('Content-Encoding');
+      h.delete('Content-Length');
       h.set('Cross-Origin-Embedder-Policy', COEP_CREDENTIALLESS ? 'credentialless' : 'require-corp');
       h.set('Cross-Origin-Opener-Policy', 'same-origin');
       if (!COEP_CREDENTIALLESS) h.set('Cross-Origin-Resource-Policy', 'cross-origin');
@@ -40,6 +49,6 @@ self.addEventListener('fetch', function (event) {
         statusText: response.statusText,
         headers: h
       });
-    }).catch(function (e) { console.error('[sw] fetch failed:', e); })
+    }).catch(function () { /* 失败则不干预，交给浏览器默认处理 */ })
   );
 });
