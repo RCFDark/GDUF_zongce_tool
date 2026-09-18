@@ -57,13 +57,24 @@
 - Chrome / Edge 86+ 桌面版（不支持 Firefox、Safari）
 - **HTTPS 或 localhost** 环境 —— 所以用上面那个 GitHub Pages 网址即可；直接双击本地 html 文件也可以。
 
-## 本地部署
+## 本地使用 / 部署
 
 ```bash
 git clone https://github.com/RCFDark/GDUF_zongce_tool.git
 cd GDUF_zongce_tool
-# 直接用 Chrome 打开 index.html 即可，无需构建
+# 直接用 Chrome 打开 index.html 即可，无需构建、无需 npm
 ```
+
+**发布方式**：GitHub Pages「分支部署」，发布分支为 **`gh-pages`**，所以线上内容 = `gh-pages` 分支根目录。
+
+更新工具后同步两个分支：
+
+```bash
+git push origin main
+git push origin main:gh-pages     # 触发 Pages 重新发布
+```
+
+> `.nojekyll` 用于跳过 Jekyll 处理，保证 `pdf.min.js` 等文件原样提供。
 
 ## License
 
