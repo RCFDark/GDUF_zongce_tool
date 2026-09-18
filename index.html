@@ -209,6 +209,39 @@
   #toast.ok{border-left-color:var(--ok);}
   #toast.warn{border-left-color:var(--warn);}
   #toast.err{border-left-color:var(--danger);}
+
+  /* ---------- 自动识别弹窗 ---------- */
+  .auto-card{max-width:min(780px,94vw);}
+  .auto-body{
+    text-align:left;padding:16px 18px;display:flex;flex-direction:column;gap:12px;
+  }
+  .auto-form{display:flex;gap:16px;flex-wrap:wrap;align-items:center;}
+  .auto-form label{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);}
+  .auto-form input[type=text]{width:180px;}
+  .auto-tip{margin:0;font-size:12.5px;color:var(--muted);line-height:1.75;}
+  .auto-tip b{color:#a9c6ff;}
+  .auto-progress{display:flex;flex-direction:column;gap:7px;}
+  .auto-progress .bar{
+    height:8px;border-radius:6px;background:#0f131a;border:1px solid var(--line);overflow:hidden;
+  }
+  .auto-progress .bar i{
+    display:block;height:100%;width:0;border-radius:6px;
+    background:linear-gradient(90deg,var(--accent),#7b5cff);transition:width .25s ease;
+  }
+  .auto-status{font-size:12.5px;color:var(--muted);min-height:18px;}
+  .auto-log-wrap{background:#0b0e13;border:1px solid var(--line);border-radius:9px;overflow:hidden;}
+  .auto-log{
+    height:232px;overflow-y:auto;padding:9px 11px;font-size:12px;line-height:1.65;
+    font-family:ui-monospace,Consolas,"Courier New",monospace;color:#c8d2e0;
+    white-space:pre-wrap;word-break:break-all;
+  }
+  .auto-log div{margin-bottom:1px;}
+  .auto-log .ok{color:#5fd3a4;}
+  .auto-log .err{color:#ff8a8a;}
+  .auto-log .warn{color:#e2bd63;}
+  .auto-log .mut{color:#6b7686;}
+  .auto-result{font-size:13px;font-weight:600;color:#a9c6ff;min-height:20px;}
+
   .spin{
     width:15px;height:15px;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;
     border-radius:50%;display:inline-block;animation:sp .7s linear infinite;vertical-align:-2px;
@@ -230,6 +263,7 @@
     <label class="switch" title="勾选后会同时扫描子文件夹里的 PDF">
       <input type="checkbox" id="includeSub"> 含子文件夹
     </label>
+    <button id="btnAuto" class="ghost" title="OCR 自动找姓名并自动保存">⚡ 自动识别</button>
     <button id="btnPick" class="primary">选择文件夹</button>
     <span id="dirInfo" class="muted"></span>
   </div>
@@ -259,6 +293,7 @@
       </ul>
       <p style="margin-top:18px">快捷键：<b>← →</b> 翻页 &nbsp;·&nbsp; <b>Enter</b> 保存并下一份 &nbsp;·&nbsp; 类型弹窗内 <b>1~6</b> 直接选 &nbsp;·&nbsp; <b>Esc</b> 关闭弹窗</p>
       <p style="margin-top:6px">姓名页右下角可<b>缩放</b>（50% ~ 400%，或按 <b>Ctrl + 滚轮</b>）；放大后拖到面板边缘会自动滚动。</p>
+      <p style="margin-top:6px">不想手动翻页找名字？点右上角 <b>⚡ 自动识别</b>：填入你的姓名，程序会用 OCR 逐份找到姓名页、自动画框并直接保存到 <b>合成结果</b>，识别不到的会自动转回本界面由你手动处理。</p>
       <p style="margin-top:14px;font-size:12px">建议用 Chrome / Edge 打开本文件（需要「文件系统访问」权限），推荐直接把本 html 双击打开使用。</p>
     </div>
 
@@ -349,6 +384,47 @@
       <span>快捷键 1~6 直接选择 · Esc 取消</span>
       <span class="grow" style="flex:1"></span>
       <button id="btnTypeCancel" class="ghost">取消</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal hidden" id="autoModal">
+  <div class="modal-card auto-card">
+    <div class="modal-head">
+      <span class="t">⚡ 自动识别（OCR）</span>
+      <span class="muted" id="autoOcrState">尚未加载</span>
+    </div>
+    <div class="modal-body auto-body">
+      <div class="auto-form">
+        <label>我的姓名
+          <input type="text" id="ocrName" placeholder="填写材料上的姓名" autocomplete="off">
+        </label>
+        <label>识别精度
+          <select id="ocrQuality">
+            <option value="1400">标准（推荐）</option>
+            <option value="1800">更高（更慢，小字更稳）</option>
+            <option value="1100">更快（大号字名单）</option>
+          </select>
+        </label>
+      </div>
+      <p class="auto-tip">
+        程序会<b>逐份扫描 PDF</b>：先在文字层里直接找（电子版秒过），找不到就用 OCR 识别后定位姓名，
+        自动画框并保存到 <b>合成结果</b>（不建类型子文件夹）。
+        识别不到的会标记为「需手动」，跑完后自动跳到那一份，你在右侧手动框一下即可。
+      </p>
+      <div class="auto-progress">
+        <div class="bar"><i id="autoBar"></i></div>
+        <div class="auto-status" id="autoStatus">填写姓名后点「开始」。首次使用需下载约 20MB 模型，之后会本地缓存。</div>
+      </div>
+      <div class="auto-log-wrap"><div class="auto-log" id="autoLog"></div></div>
+      <div class="auto-result" id="autoResult"></div>
+    </div>
+    <div class="modal-foot">
+      <span class="fname">提示：识别过程中请勿关闭本页面</span>
+      <button id="btnAutoManual" class="ghost hidden">进入手动处理</button>
+      <button id="btnAutoStop" class="ghost hidden">停止</button>
+      <button id="btnAutoClose" class="ghost">关闭</button>
+      <button id="btnAutoStart" class="primary">开始自动识别</button>
     </div>
   </div>
 </div>
@@ -1085,6 +1161,465 @@ buildOutput = async function(p, w){ var cv = await _bo(p, w); cv.__for = p; retu
 if (!SUPPORTED){
   $('subTitle').innerHTML = '<span style="color:#f05252">当前浏览器不支持文件夹读写，请用 Chrome 或 Edge 打开本文件</span>';
 }
+
+/* ========== 13. OCR 自动识别 ========== */
+/* 与 html 同目录的组件（缺失时自动从线上回退加载）：
+ *   ocr-engine.js                                                  —— OCR 引擎（window.PPOCR）
+ *   ort.min.js / ort-wasm-simd-threaded.mjs / ort-wasm-simd-threaded.wasm —— onnxruntime-web
+ *   charset.js / ocr-det.onnx / ocr-rec.onnx                       —— 字符表 + 检测/识别模型
+ *
+ * 注意：onnxruntime 的 .wasm 必须经 fetch 加载，file:// 下浏览器会拦截，
+ *       因此本地双击打开时自动跳过「同目录」、直接走线上地址（模型同样可被缓存）。
+ */
+
+var OCR_DET_FILE = 'ocr-det.onnx';
+var OCR_REC_FILE = 'ocr-rec.onnx';
+
+var OCR_BASES = [
+  './',
+  'https://rcfdark.github.io/GDUF_zongce_tool/',
+  'https://cdn.jsdelivr.net/gh/RCFDark/GDUF_zongce_tool@main/'
+];
+
+var OCR = {
+  ready: false,
+  loading: false,
+  base: null,
+  threads: 1,
+  dlg: { open: false, running: false, stop: false, name: '', longSide: 1400 }
+};
+
+/* file:// 下不能用本地目录（fetch 受限），只保留 http(s) 地址 */
+function ocrUsableBases(){
+  var bases = OCR_BASES.slice();
+  if (location.protocol === 'file:'){
+    bases = bases.filter(function(b){ return /^https?:/i.test(b); });
+  }
+  return bases;
+}
+
+function ocrBaseOrder(){
+  var bases = ocrUsableBases();
+  var last = null;
+  try{ last = localStorage.getItem('ppocr_base'); }catch(e){}
+  if (last && bases.indexOf(last) >= 0){
+    return [last].concat(bases.filter(function(b){ return b !== last; }));
+  }
+  return bases;
+}
+
+function ocrRememberBase(b){
+  try{ localStorage.setItem('ppocr_base', b); }catch(e){}
+  OCR.base = b;
+}
+
+function ocrLoadScript(url){
+  return new Promise(function(res, rej){
+    var s = document.createElement('script');
+    s.src = url;
+    if (/^https?:\/\//i.test(url) && url.indexOf(location.origin + '/') !== 0){
+      s.crossOrigin = 'anonymous';    // 开启跨源隔离后，跨域脚本必须是 CORS 请求
+    }
+    s.onload = function(){ res(true); };
+    s.onerror = function(){ rej(new Error('无法加载 ' + url)); };
+    document.head.appendChild(s);
+  });
+}
+
+async function ocrFetchBuf(url){
+  // 优先走 Cache Storage，重复使用时不再下载（模型共约 20MB）
+  if (window.caches && /^https?:$/.test(location.protocol)){
+    try{
+      var cache = await caches.open('ppocr-assets-v1');
+      var hit = await cache.match(url);
+      if (hit) return await hit.arrayBuffer();
+      var resp = await fetch(url);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      await cache.put(url, resp.clone());
+      return await resp.arrayBuffer();
+    }catch(e){ /* 落到直接 fetch */ }
+  }
+  var r2 = await fetch(url);
+  if (!r2.ok) throw new Error('HTTP ' + r2.status);
+  return await r2.arrayBuffer();
+}
+
+async function ocrLoadScriptFromBases(file){
+  var errs = [], bases = ocrBaseOrder();
+  if (!bases.length) throw new Error('没有可用的资源地址');
+  for (var i = 0; i < bases.length; i++){
+    try{
+      await ocrLoadScript(bases[i] + file);
+      ocrRememberBase(bases[i]);
+      return bases[i];
+    }catch(e){ errs.push('· ' + bases[i] + file); }
+  }
+  throw new Error('加载 ' + file + ' 失败，已尝试：\n' + errs.join('\n'));
+}
+
+async function ocrLoadBinaryFromBases(file){
+  var errs = [], bases = ocrBaseOrder();
+  if (!bases.length) throw new Error('没有可用的资源地址');
+  for (var i = 0; i < bases.length; i++){
+    try{
+      var buf = await ocrFetchBuf(bases[i] + file);
+      ocrRememberBase(bases[i]);
+      return buf;
+    }catch(e){ errs.push('· ' + bases[i] + file + '（' + (e && e.message || e) + '）'); }
+  }
+  throw new Error('加载 ' + file + ' 失败，已尝试：\n' + errs.join('\n'));
+}
+
+function ocrSetState(text, cls){
+  var el = $('autoOcrState');
+  if (el){ el.className = 'muted' + (cls ? ' ' + cls : ''); el.textContent = text; }
+}
+
+async function ensureOcrAssets(){
+  if (OCR.ready) return;
+  if (OCR.loading) throw new Error('OCR 组件正在加载，请稍候');
+  OCR.loading = true;
+  try{
+    ocrSetState('准备 OCR 引擎…');
+
+    if (!window.ort){
+      ocrSetState('加载 onnxruntime-web…');
+      await ocrLoadScriptFromBases('ort.min.js');
+      if (!window.ort) throw new Error('onnxruntime-web 加载后仍不可用');
+    }
+    if (!window.PPOCR){
+      ocrSetState('加载 OCR 引擎…');
+      await ocrLoadScriptFromBases('ocr-engine.js');
+      if (!window.PPOCR) throw new Error('OCR 引擎加载失败');
+    }
+    if (!window.PPOCR_CHARSET_B64){
+      ocrSetState('加载字符表…');
+      await ocrLoadScriptFromBases('charset.js');
+      if (!window.PPOCR_CHARSET_B64) throw new Error('字符表加载失败');
+    }
+
+    ocrSetState('加载识别模型 1/2（约 20MB，首次较慢，之后本地缓存）…');
+    var detBuf = await ocrLoadBinaryFromBases(OCR_DET_FILE);
+    ocrSetState('加载识别模型 2/2 …');
+    var recBuf = await ocrLoadBinaryFromBases(OCR_REC_FILE);
+
+    var threads = (window.crossOriginIsolated === true)
+      ? Math.max(1, Math.min(4, navigator.hardwareConcurrency || 1))
+      : 1;
+
+    ocrSetState('初始化推理会话…');
+    window.ort.env.wasm.wasmPaths = (OCR.base === null ? './' : OCR.base);
+    window.ort.env.wasm.numThreads = threads;
+    PPOCR.setOrt(window.ort);
+    var info = await PPOCR.initModels(detBuf, recBuf, {
+      threads: threads,
+      charsetB64: window.PPOCR_CHARSET_B64
+    });
+
+    OCR.ready = true;
+    OCR.threads = threads;
+    ocrSetState('OCR 就绪 · ' + threads + ' 线程 · ' + info.classes + ' 字符', 'ok');
+  } finally {
+    OCR.loading = false;
+  }
+}
+
+/* ---------- 文字层优先：电子版 PDF 直接拿坐标，无需 OCR ---------- */
+
+function pdfItemRect(item, vp){
+  var t = window.pdfjsLib.Util.transform(vp.transform, item.transform);
+  var fontH = Math.hypot(t[2], t[3]) || Math.abs(t[3]) || 10;
+  var w = (item.width || 0) * vp.scale;
+  var x = t[4], yTop = t[5] - fontH;
+  return [x, yTop, x + w, yTop + fontH];
+}
+
+async function textLayerFind(page, name){
+  var target = PPOCR.normText(name);
+  if (!target) return null;
+  try{
+    var tc = await page.getTextContent();
+    var items = tc.items || [];
+    if (!items.length) return null;
+    var joined = '', map = [];
+    for (var i = 0; i < items.length; i++){
+      var nt = PPOCR.normText(items[i].str);
+      if (!nt) continue;
+      joined += nt;
+      map.push({ idx: i, start: joined.length - nt.length, end: joined.length });
+    }
+    var pos = joined.indexOf(target);
+    if (pos < 0) return null;
+
+    var pgv = page.getViewport({ scale: 1 });
+    var use = [];
+    for (var k = 0; k < map.length; k++){
+      if (map[k].end > pos && map[k].start < pos + target.length) use.push(items[map[k].idx]);
+    }
+    if (!use.length) return null;
+    var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (var m = 0; m < use.length; m++){
+      var r = pdfItemRect(use[m], pgv);
+      x0 = Math.min(x0, r[0]); y0 = Math.min(y0, r[1]);
+      x1 = Math.max(x1, r[2]); y1 = Math.max(y1, r[3]);
+    }
+    if (!isFinite(x0) || x1 <= x0) return null;
+    return [
+      Math.max(0, x0 / pgv.width), Math.max(0, y0 / pgv.height),
+      Math.min(1, x1 / pgv.width), Math.min(1, y1 / pgv.height)
+    ];
+  }catch(e){ return null; }
+}
+
+/* ---------- 逐页定位 ---------- */
+
+async function renderPageForOcr(num, longSide){
+  var pg = await S.doc.getPage(num);
+  var base = pg.getViewport({ scale: 1 });
+  var scale = longSide / Math.max(base.width, base.height);
+  var vp = pg.getViewport({ scale: scale });
+  var cv = document.createElement('canvas');
+  cv.width  = Math.max(1, Math.floor(vp.width));
+  cv.height = Math.max(1, Math.floor(vp.height));
+  var ctx = cv.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, cv.width, cv.height);
+  await pg.render({ canvasContext: ctx, viewport: vp }).promise;
+  return cv;
+}
+
+/** 在某一页里找姓名；返回 {page, rect, via, ...} 或 null */
+async function findNameOnPage(pageNum, total){
+  var name = OCR.dlg.name;
+  var pg = await S.doc.getPage(pageNum);
+
+  // ① 文字层（仅正向页面）
+  if ((pg.rotate % 180) === 0){
+    var tl = await textLayerFind(pg, name);
+    if (tl) return { page: pageNum, rect: PPOCR.padRect(tl), via: '文字层' };
+  }
+
+  // ② OCR
+  var cv = await renderPageForOcr(pageNum, OCR.dlg.longSide);
+  var r = await PPOCR.runPage(cv, {
+    batchSize: 6,
+    onBatch: function(acc){ return !!PPOCR.findName(acc, name); }
+  });
+  var hit = PPOCR.findName(r.items, name);
+  if (hit){
+    var rect = PPOCR.padRect(PPOCR.hitToRect(hit, cv.width, cv.height));
+    return {
+      page: pageNum, rect: rect, via: 'OCR',
+      kind: hit.kind, text: hit.items.map(function(x){ return x.text; }).join('|'),
+      score: hit.items[0] ? hit.items[0].score : null,
+      boxes: r.items.length, totalBoxes: r.ms.boxes, ms: Math.round(r.ms.total)
+    };
+  }
+  return null;
+}
+
+/* ---------- 自动批处理 ---------- */
+
+var AUTO_LOG_MAX = 400;
+
+function autoLog(text, cls){
+  var el = $('autoLog');
+  if (!el) return;
+  var div = document.createElement('div');
+  if (cls) div.className = cls;
+  div.textContent = text;
+  el.appendChild(div);
+  while (el.childNodes.length > AUTO_LOG_MAX) el.removeChild(el.firstChild);
+  el.scrollTop = el.scrollHeight;
+}
+
+function autoSetProgress(done, total, text){
+  var bar = $('autoBar');
+  if (bar) bar.style.width = (total ? Math.round(done / total * 100) : 0) + '%';
+  if (text) $('autoStatus').textContent = text;
+}
+
+async function autoSaveOne(p, blob){
+  var outDir = await p.dirHandle.getDirectoryHandle(OUT_FOLDER, { create: true });
+  var fname = outFileName(p, '.jpg');
+  var fh = await outDir.getFileHandle(fname, { create: true });
+  var w = await fh.createWritable();
+  await w.write(blob);
+  await w.close();
+  return fname;
+}
+
+async function autoRunAll(){
+  var name = ($('ocrName').value || '').trim();
+  if (!name){ toast('请先填写你的姓名', 'warn', 3200); $('ocrName').focus(); return; }
+  if (!S.pdfs.length){ toast('请先选择存放 PDF 的文件夹', 'warn', 3200); return; }
+
+  OCR.dlg.name = name;
+  OCR.dlg.longSide = parseInt($('ocrQuality').value, 10) || 1400;
+  OCR.dlg.stop = false;
+  OCR.dlg.running = true;
+
+  $('btnAutoStart').disabled = true;
+  $('btnAutoStop').classList.remove('hidden');
+  $('btnAutoManual').classList.add('hidden');
+  $('autoLog').innerHTML = '';
+  $('autoResult').textContent = '';
+
+  var okCount = 0, failList = [], skipCount = 0;
+  var t0 = Date.now();
+
+  try{
+    await ensureOcrAssets();
+    autoLog('OCR 就绪（' + OCR.threads + ' 线程）· 开始处理 ' + S.pdfs.length + ' 份 PDF', 'ok');
+
+    for (var i = 0; i < S.pdfs.length; i++){
+      if (OCR.dlg.stop){ autoLog('⏹ 已手动停止', 'warn'); break; }
+      var p = S.pdfs[i];
+
+      if (p.status === 'done' || p.existingIn){
+        skipCount++;
+        autoLog('· 跳过（已有结果）  ' + p.name, 'mut');
+        autoSetProgress(i + 1, S.pdfs.length);
+        continue;
+      }
+
+      autoSetProgress(i, S.pdfs.length, '正在处理 ' + (i + 1) + ' / ' + S.pdfs.length + '：' + p.name);
+      autoLog('▶ ' + p.name + '  [' + (i + 1) + '/' + S.pdfs.length + ']');
+
+      var found = null, reason = '';
+      try{
+        await loadDoc(p);
+        p.total = S.doc.numPages;
+        var hit = null;
+        for (var num = 1; num <= p.total; num++){
+          if (OCR.dlg.stop) throw new Error('__stopped__');
+          var pageT0 = Date.now();
+          hit = await findNameOnPage(num, p.total);
+          if (hit) break;
+          if (p.total > 3){
+            autoLog('   · 第 ' + num + '/' + p.total + ' 页未命中（' + ((Date.now() - pageT0) / 1000).toFixed(1) + 's）', 'mut');
+          }
+        }
+        found = hit;
+      }catch(e){
+        if (e && e.message === '__stopped__'){ autoLog('⏹ 已停止', 'warn'); break; }
+        reason = e && e.message ? e.message : String(e);
+      }
+
+      if (!found){
+        p.status = 'failed';
+        failList.push(p);
+        autoLog('   ✖ ' + (reason ? '出错：' + reason : '未识别到姓名，已转入手动处理'), 'err');
+        renderList();
+        autoSetProgress(i + 1, S.pdfs.length);
+        await sleep(0);
+        continue;
+      }
+
+      // 记录命中位置，复用现有的生成逻辑
+      p.page = found.page;
+      p.sel[found.page] = {
+        x: found.rect[0], y: found.rect[1],
+        w: found.rect[2] - found.rect[0], h: found.rect[3] - found.rect[1]
+      };
+      lastOutput = null;
+
+      try{
+        if (!await ensureRW(p.dirHandle)) throw new Error('没有写入权限');
+        var cv = await buildOutput(p, parseInt($('outWidth').value, 10));
+        var blob = await canvasToBlob(cv, 'image/jpeg', 0.94);
+        var fname = await autoSaveOne(p, blob);
+        p.status = 'done';
+        p.savedType = NO_TYPE;
+        p.existingIn = NO_TYPE;
+        okCount++;
+        var extra = found.via === 'OCR' ? '（OCR 扫描 ' + found.boxes + ' 框 / 共 ' + found.totalBoxes + '）' : '（文字层直读）';
+        autoLog('   ✔ 姓名在第 ' + found.page + ' 页 ' + extra + ' → ' + OUT_FOLDER + '/' + fname, 'ok');
+      }catch(e){
+        p.status = 'failed';
+        failList.push(p);
+        autoLog('   ✖ 生成失败：' + (e && e.message || e), 'err');
+      }
+      renderList();
+      autoSetProgress(i + 1, S.pdfs.length);
+      await sleep(0);
+    }
+  }catch(e){
+    autoLog('✖ ' + (e && e.message || e), 'err');
+    toast('自动识别中断：' + (e && e.message || e), 'err', 5200);
+  }finally{
+    OCR.dlg.running = false;
+    $('btnAutoStart').disabled = false;
+    $('btnAutoStop').classList.add('hidden');
+    var secs = ((Date.now() - t0) / 1000).toFixed(0);
+    var summary = '完成：成功 ' + okCount + ' 份，需手动 ' + failList.length + ' 份，跳过 ' + skipCount + ' 份 · 用时 ' + secs + 's';
+    $('autoStatus').textContent = summary;
+    $('autoResult').textContent = summary;
+    if (failList.length){
+      $('btnAutoManual').classList.remove('hidden');
+      $('btnAutoManual').textContent = '进入手动处理（' + failList.length + ' 份）';
+    } else if (okCount){
+      $('btnAutoManual').classList.add('hidden');
+      toast('🎉 自动识别完成，成功 ' + okCount + ' 份', 'ok', 4600);
+    }
+  }
+}
+
+function openAutoModal(){
+  if (!SUPPORTED){ toast('需要 Chrome / Edge 才支持文件夹读写', 'err', 4200); return; }
+  if (!S.pdfs.length){ toast('请先选择存放 PDF 的文件夹', 'warn', 3400); return; }
+  $('autoModal').classList.remove('hidden');
+  if (!$('ocrName').value){
+    try{ $('ocrName').value = localStorage.getItem('ppocr_name') || ''; }catch(e){}
+  }
+  $('ocrName').focus();
+}
+
+$('btnAuto').addEventListener('click', openAutoModal);
+$('btnAutoClose').addEventListener('click', function(){
+  if (OCR.dlg.running){ toast('正在识别中，请先点「停止」', 'warn', 2600); return; }
+  $('autoModal').classList.add('hidden');
+});
+$('btnAutoStart').addEventListener('click', function(){
+  try{ localStorage.setItem('ppocr_name', ($('ocrName').value || '').trim()); }catch(e){}
+  autoRunAll();
+});
+$('btnAutoStop').addEventListener('click', function(){
+  OCR.dlg.stop = true;
+  $('btnAutoStop').disabled = true;
+  setTimeout(function(){ $('btnAutoStop').disabled = false; }, 1500);
+});
+$('btnAutoManual').addEventListener('click', function(){
+  $('autoModal').classList.add('hidden');
+  var first = null;
+  for (var i = 0; i < S.pdfs.length; i++){ if (S.pdfs[i].status === 'failed'){ first = i; break; } }
+  if (first !== null){
+    toast('已跳到第一份未处理的 PDF，请手动框选姓名', 'warn', 4200);
+    openPdf(first);
+  }
+});
+$('autoModal').addEventListener('click', function(e){
+  if (e.target === this && !OCR.dlg.running) this.classList.add('hidden');
+});
+$('ocrName').addEventListener('keydown', function(e){
+  if (e.key === 'Enter'){ e.stopPropagation(); $('btnAutoStart').click(); }
+});
+
+/* 提前把页面切到「跨源隔离」，onnxruntime 才能多线程（首次访问自动重载一次，无感知） */
+(function prepareCrossOriginIsolation(){
+  if (window.crossOriginIsolated === true) return;
+  if (!/^https?:$/.test(location.protocol)) return;         // file:// 下 service worker 不可用
+  if (!('serviceWorker' in navigator)) return;
+  var flag = '__coi_tried';
+  try{ if (sessionStorage.getItem(flag)) return; sessionStorage.setItem(flag, '1'); }catch(e){ return; }
+  navigator.serviceWorker.register('sw.js', { scope: './' }).then(function(){
+    if (navigator.serviceWorker.controller) return;
+    navigator.serviceWorker.addEventListener('controllerchange', function(){ location.reload(); });
+    setTimeout(function(){
+      if (!navigator.serviceWorker.controller) location.reload();
+    }, 2500);
+  }).catch(function(){});
+})();
 </script>
 </body>
 </html>
