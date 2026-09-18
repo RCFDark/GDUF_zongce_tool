@@ -1,0 +1,48 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # enablement: true 会在 Pages 尚未开启时自动开启，省去手动去 Settings 里点
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      # 仓库里已带 pdf.js；若缺失则从 CDN 补一份，保证站点自包含
+      - name: Ensure pdf.js present
+        run: |
+          BASE="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build"
+          [ -f pdf.min.js ]        || curl -fsSL -o pdf.min.js        "$BASE/pdf.min.js"
+          [ -f pdf.worker.min.js ] || curl -fsSL -o pdf.worker.min.js "$BASE/pdf.worker.min.js"
+          ls -la pdf.min.js pdf.worker.min.js
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
